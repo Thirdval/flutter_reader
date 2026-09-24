@@ -1,0 +1,21 @@
+name: flutter_reader_example
+description: "Demonstrates flutter_reader: a 10,000-paragraph document and a chat with paging, live inserts and anchored jumps."
+publish_to: none
+version: 2.0.0
+
+environment:
+  sdk: ^3.13.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_reader:
+    path: ../
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+
+flutter:
+  uses-material-design: true

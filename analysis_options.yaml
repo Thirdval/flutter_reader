@@ -1,0 +1,44 @@
+include: package:flutter_lints/flutter.yaml
+
+analyzer:
+  errors:
+    missing_return: error
+    missing_required_param: error
+  exclude:
+    - "**/*.g.dart"
+    - "**/*.freezed.dart"
+    - "**/*.config.dart"
+    - "build/**"
+    - android/**
+    - ios/**
+    - web/**
+    - windows/**
+    - macos/**
+    - linux/**
+
+linter:
+  rules:
+    prefer_single_quotes: true
+    always_declare_return_types: true
+    annotate_overrides: true
+    avoid_empty_else: true
+    avoid_print: true
+    cancel_subscriptions: true
+    prefer_const_constructors: true
+    prefer_const_declarations: true
+    prefer_final_locals: true
+    sort_constructors_first: true
+    discarded_futures: true
+    unawaited_futures: true
+    unnecessary_brace_in_string_interps: true
+    # Dart 3.13: primary constructors + stricter typing
+    use_primary_constructors: true
+    use_declaring_parameters: true
+    unnecessary_primary_constructor_body: true
+    unnecessary_type_name_in_constructor: true
+    unnecessary_const_in_enum_constructor: true
+    async_return_with_no_await: true
+    no_dynamic_casts: true
+    no_raw_types: true
+    empty_container_bodies: true
+    initialize_in_field_declaration: true

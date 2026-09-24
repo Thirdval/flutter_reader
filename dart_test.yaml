@@ -1,0 +1,3 @@
+tags:
+  benchmark:
+    description: Timing-sensitive; run on a quiet machine with `--tags benchmark`.
