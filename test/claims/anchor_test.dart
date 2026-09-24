@@ -88,6 +88,40 @@ void main() {
     scroll.dispose();
   });
 
+  testWidgets('leading slivers do not shift an anchor or a jump', (
+    tester,
+  ) async {
+    for (final spacer in [4.0, 40.0]) {
+      final controller = controllerOf(items(200));
+      final scroll = ScrollController();
+      final slivers = [SliverToBoxAdapter(child: SizedBox(height: spacer))];
+      await tester.pumpWidget(
+        host(
+          controller,
+          scroll,
+          reverse: true,
+          anchor: const ReaderAnchor(id: 'item_100', alignment: 0.7),
+          leadingSlivers: slivers,
+          trailingSlivers: const [
+            SliverToBoxAdapter(child: SizedBox(height: 40)),
+          ],
+        ),
+      );
+      await tester.pump();
+      expect(topOf(tester, 'item_100'), 130.0, reason: 'spacer $spacer');
+      controller.jumpToId('item_150', alignment: 0.5);
+      await tester.pump();
+      expect(topOf(tester, 'item_150'), 250.0, reason: 'spacer $spacer');
+      scroll.jumpTo(0);
+      await tester.pump();
+      controller.jumpToId('item_190', alignment: 0.7);
+      await tester.pump();
+      expect(topOf(tester, 'item_190'), 130.0, reason: 'from the end');
+      controller.dispose();
+      scroll.dispose();
+    }
+  });
+
   testWidgets('a second anchor re-places; the same anchor does not', (
     tester,
   ) async {

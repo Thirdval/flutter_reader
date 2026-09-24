@@ -15,7 +15,7 @@ dependencies:
   flutter_reader:
     git:
       url: https://github.com/Thirdval/flutter_reader.git
-      ref: v2.0.0
+      ref: v2.0.1
 ```
 
 Dart `^3.13.0`, Flutter `>=3.47.0` (`.fvmrc` pins 3.47.1). No other
@@ -149,9 +149,12 @@ means "latest".
 | `engine`, `registry` | The pure-Dart engine and registry underneath |
 
 `alignment` is where the item's leading edge lands, as a fraction of the
-viewport from the viewport's leading edge: `0` at the edge, `0.5` in the
+sliver's paint area from its leading edge: `0` at the edge, `0.5` in the
 middle, `0.7` as a chat anchor. In reverse mode the leading edge is the
-bottom.
+bottom. The paint area is the viewport less whatever precedes the sliver
+on screen, so a leading spacer that scrolls away does not shift the
+placement, while a pinned header before the list does (the item lands
+below it). A placement is settled over the same frame's layout passes.
 
 ### `ReaderView<T>`
 
@@ -223,6 +226,20 @@ fvm flutter test --exclude-tags benchmark
 fvm flutter test --tags benchmark
 cd example && fvm flutter run
 ```
+
+Testing notes for adopters:
+
+* Reach an edge through the controller. `scrollToEnd()` and
+  `jumpToIndex(0)` / `jumpToId` land exactly in one frame. A raw
+  `scrollController.jumpTo(position.maxScrollExtent)` targets the
+  extent as estimated *before* the jump; the far end's real heights
+  arrive in that layout, the extent grows, and the viewport snaps to
+  the new maximum a frame later, so a test that wants "the far edge
+  reached" through the scroll controller must pump until `pixels ==
+  maxScrollExtent`. The claim tests use `jumpToIndex` for this reason.
+* Layout reports, and with them `visibility`, `onEdgeReached` and
+  `onAtEndChanged`, arrive after the frame: pump once for the layout
+  and once for the callbacks.
 
 ## License
 

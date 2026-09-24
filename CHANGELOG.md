@@ -1,5 +1,14 @@
 # Changelog
 
+## 2.0.1
+
+* A placement (a jump or a newly set anchor) is settled against the
+  sliver's actual paint area over the same frame's re-layout passes.
+  With a leading sliver still on screen (a 4 px spacer at the bottom of
+  a chat), the item landed short by that sliver's visible extent.
+* README: the alignment's frame of reference, and a testing note on
+  `jumpTo(maxScrollExtent)` versus `scrollToEnd` / `jumpToIndex`.
+
 ## 2.0.0
 
 A rewrite of the widget layer around an engine-backed sliver, with the

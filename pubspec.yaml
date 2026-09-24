@@ -1,6 +1,6 @@
 name: flutter_reader
 description: "An engine-backed scrollable list: exact jumps to any item without building what lies between, a reference item kept fixed while content changes around it, reverse (chat) mode, lazy loading gated on the cache extent, and text search."
-version: 2.0.0
+version: 2.0.1
 homepage: https://github.com/Thirdval/flutter_reader
 repository: https://github.com/Thirdval/flutter_reader
 issue_tracker: https://github.com/Thirdval/flutter_reader/issues

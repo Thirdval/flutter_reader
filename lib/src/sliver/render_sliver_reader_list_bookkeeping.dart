@@ -65,11 +65,16 @@ extension _Bookkeeping on RenderSliverReaderList {
     }
   }
 
+  /// Drops everything remembered between passes, placements included:
+  /// a new model (a controller swap) or an emptied list starts over.
   void _forget() {
     _offsetsById.clear();
     _attachedIds.clear();
     _orderedIds = const [];
     _referenceId = null;
+    _placedAnchorId = null;
+    _settling = null;
+    _settlePasses = 0;
   }
 
   void _reportVisible(

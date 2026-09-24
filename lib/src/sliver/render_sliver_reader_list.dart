@@ -26,11 +26,10 @@ class const _Placement(
 /// a pending placement (a jump or a newly set anchor), the pinned anchor,
 /// raw index 0 when the viewport is at its end (follow mode), else the
 /// reference child of the previous pass (the first visible child, or a
-/// neighbour when it was removed) at its previous layout offset. Layout
-/// offsets are remembered by item id, so an insert or a removal before
-/// the reference child moves nothing on screen; the drift between layout
-/// and model offsets is settled with a scroll offset correction when the
-/// run reaches raw index 0.
+/// neighbour when it was removed) at its remembered layout offset, so an
+/// insert or a removal before it moves nothing on screen; drift between
+/// layout and model offsets is settled with a scroll offset correction
+/// when the run reaches raw index 0.
 class RenderSliverReaderList({
   required super.childManager,
   required var ReaderLayoutModel _model,
@@ -44,18 +43,25 @@ class RenderSliverReaderList({
   /// while the viewport sits at its start.
   static const _maxLeadingFill = 32;
 
+  /// Corrections spent settling one placement against a paint area
+  /// that changes as preceding slivers scroll away.
+  static const _maxSettlePasses = 4;
+
   final Map<String, double> _offsetsById = {};
   final Set<String> _attachedIds = {};
   List<String> _orderedIds = const [];
   String? _referenceId;
   int _fulfilledJumpSerial = -1;
   String? _placedAnchorId;
+  _Placement? _settling;
+  int _settlePasses = 0;
 
   ReaderLayoutModel get model => _model;
   set model(ReaderLayoutModel value) {
     if (identical(value, _model)) return;
     _model = value;
     _forget();
+    _fulfilledJumpSerial = -1;
     markNeedsLayout();
   }
 
@@ -109,7 +115,7 @@ class RenderSliverReaderList({
         scrollOffset + constraints.precedingScrollExtent <= _atEndThreshold;
 
     _restoreOffsets();
-    final placement = _placement();
+    final placement = _placement() ?? _settling;
     final seed = _chooseSeed(placement, atEnd, cacheStart, cacheEnd, viewport);
     final seedChild = _materializeSeed(seed, childConstraints);
     if (seedChild == null) {
@@ -126,14 +132,22 @@ class RenderSliverReaderList({
       final edge = placement.trailingEdge
           ? seed.offset + seedExtent
           : seed.offset;
-      final target = math.max(0.0, edge - placement.alignment * viewport);
-      if ((target - scrollOffset).abs() > precisionErrorTolerance) {
+      // Alignment: a fraction of the sliver's paint area.
+      final target = math.max(
+        0.0,
+        edge - placement.alignment * constraints.remainingPaintExtent,
+      );
+      final delta = target - scrollOffset;
+      if (delta.abs() > precisionErrorTolerance &&
+          _settlePasses < _maxSettlePasses) {
+        _settling = placement;
+        _settlePasses++;
         _snapshotOffsets();
-        geometry = SliverGeometry(
-          scrollOffsetCorrection: target - scrollOffset,
-        );
+        geometry = SliverGeometry(scrollOffsetCorrection: delta);
         return;
       }
+      _settling = null;
+      _settlePasses = 0;
     }
 
     final earliest = _expandBackward(

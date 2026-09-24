@@ -590,9 +590,9 @@ Owner check: the P3a Pixel list once more, after the deletion.
 | P0 | Hygiene: own repo, fold the engine, fvm pin, lints and caps, dead widgets out, CI workflow | ☑ built 2026-09-24 | v2.0.0 | ☐ |
 | P1 | Engine truths: a test per claim, reverse mapping, guards, view rebuilds, width detection, deferred jump, engine O(N) fix | ☑ built 2026-09-24 — folded into P2: the claims suite (`test/claims/`, 30 tests) is green against the new sliver, none tagged pending; the engine's error tree replaces the O(distance) walk | v2.0.0 | ☐ |
 | P2 | The chat contract: `SliverReaderList`, generic items, `setItems` diff, anchor and end semantics, example app, README | ☑ built 2026-09-24 — 167 tests + 1 benchmark, analyze clean under Tendvine's lints, example app (document + chat), README from the tests | v2.0.0 | ☐ |
-| P3a | Adoption: `ConversationBody` behind its props, states, tests, Pixel list (the "App" session, against v2.0.0) | ☐ | — | ☐ |
-| P3b | Adoption: `ThreadBody` (optional) | ☐ | — | ☐ |
-| P4 | Remove the hand-rolled anchor code | ☐ | — | ☐ |
+| P3a | Adoption: `ConversationBody` behind its props, states, tests, Pixel list (the "App" session, against v2.0.0) | ☑ built 2026-09-24 by the App session — a reversed `ReaderView<ConversationEntry>` behind the unchanged props, states and `JumpPaging`; two states added; Pixel 10 on the staging seed: one history fetch per open, no self-paging, live posts / edits / deletes while scrolled up moved nothing, the pill counted, a search hit landed anchored at 0.7 after one older page, keyboard and 200 % text keep the bottom. Not exercised: a ten-page room, TalkBack order | `99454c2c7` (tendvine, local) | ☐ |
+| P3b | Adoption: `ThreadBody` (optional) | ☑ built 2026-09-24 by the App session — a forward `ReaderView<ThreadEntry>`, one state added; a long thread pages at the end, a short one at once | `99454c2c7` (tendvine, local) | ☐ |
+| P4 | Remove the hand-rolled anchor code | ☑ built 2026-09-24 by the App session — `center:` anchor, `_anchorIndexOf`, the scroll listener and the `SliverLayoutBuilder` gate deleted; full non-golden suite 6,386 green | `99454c2c7` (tendvine, local) | ☐ |
 
 Legend: ☐ not started · ◐ in progress · ☑ done (commit) · ✔ owner
 verified · ⊘ blocked (reason). Update the row in the same commit as
