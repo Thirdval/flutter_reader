@@ -600,6 +600,15 @@ the work.
 
 Order: P0 → P1 → P2 → P3a → P4; P3b any time after P2.
 
+**After the plan (2026-09-24, v2.1.0):** the App session's adoption
+notes became four API additions (`onAnchorPlaced`, `setItems` with
+the edge flags, an optional `initialWidth`, "an anchor on the newest
+message means the end") and ten proven scenarios
+(`test/claims/adoption_asks_test.dart`); a randomized stress walk
+(`test/stress/`) found and fixed three reference-child defects (an
+off-screen anchor pinning, a replayed jump, a placement short of the
+viewport's origin); PageStorage restore became content-exact.
+
 ---
 
 ## 6. What the owner decides

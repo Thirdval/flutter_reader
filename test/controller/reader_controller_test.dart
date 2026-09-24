@@ -1,4 +1,5 @@
 import 'package:flutter/widgets.dart';
+import 'package:flutter_reader/flutter_reader.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../support/harness.dart';

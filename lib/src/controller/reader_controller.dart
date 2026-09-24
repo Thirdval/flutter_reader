@@ -12,6 +12,8 @@ import '../layout/reader_layout_model.dart';
 import 'item_diff.dart';
 import 'reader_anchor.dart';
 
+part 'reader_controller_navigation.dart';
+
 /// Owns the items and their height model for a [ReaderView], and offers
 /// navigation, lazy loading and visibility over them. Indices in this
 /// API are data indices (the order items were given); the view maps
@@ -28,14 +30,17 @@ class ReaderController<T>({
   /// The type key of an item, into [typeConfigs].
   required final String Function(T item) typeKeyOf,
   required Map<String, ItemTypeConfig<T>> typeConfigs,
-  required double initialWidth,
+
+  /// The width estimators run at before the first layout; the first
+  /// layout re-estimates at the real width. 0 means unknown.
+  double initialWidth = 0,
   int bucketSize = 128,
 
   /// Whether content exists before the first item (older history).
-  var bool hasMoreBefore = false,
+  var bool _hasMoreBefore = false,
 
   /// Whether content exists after the last item.
-  var bool hasMoreAfter = false,
+  var bool _hasMoreAfter = false,
 
   /// Called, after the frame, when the edge of the loaded items enters
   /// the cache window and that edge has more; once per page, until the
@@ -82,6 +87,24 @@ class ReaderController<T>({
 
   // ── Items ────────────────────────────────────────────────────────────
 
+  /// Whether content exists before the first item. Setting it to true
+  /// fires [onEdgeReached] after the frame if that edge is already in
+  /// the cache window.
+  bool get hasMoreBefore => _hasMoreBefore;
+  set hasMoreBefore(bool value) {
+    if (value == _hasMoreBefore) return;
+    _hasMoreBefore = value;
+    if (value) _scheduleDispatch();
+  }
+
+  /// Whether content exists after the last item; see [hasMoreBefore].
+  bool get hasMoreAfter => _hasMoreAfter;
+  set hasMoreAfter(bool value) {
+    if (value == _hasMoreAfter) return;
+    _hasMoreAfter = value;
+    if (value) _scheduleDispatch();
+  }
+
   int get itemCount => _registry.itemCount;
   T itemAt(int index) => _registry.itemAt(index).data;
   int? indexOfId(String id) => _registry.indexOfId(id);
@@ -92,9 +115,10 @@ class ReaderController<T>({
   ItemRegistry<T> get registry => _registry;
 
   /// Replaces the list: items keep their heights by id, removals and
-  /// insertions are applied as batches, a reorder rebuilds. Resets the
-  /// loading guard of an edge that gained items.
-  void setItems(List<T> items) {
+  /// insertions are applied as batches, moved items are re-inserted.
+  /// Resets the loading guard of an edge that gained items, and sets
+  /// [hasMoreBefore] / [hasMoreAfter] when given.
+  void setItems(List<T> items, {bool? hasMoreBefore, bool? hasMoreAfter}) {
     final diff = diffItems<T>(
       oldIds: [for (var i = 0; i < itemCount; i++) _registry.idAt(i)],
       newItems: items,
@@ -106,9 +130,6 @@ class ReaderController<T>({
           _registry.removeRange(start, count);
         case InsertItems<T>(:final index, :final items):
           _registry.insertAll(index, _wrap(items));
-        case ReplaceAll<T>(:final items):
-          _registry.removeRange(0, itemCount);
-          _registry.insertAll(0, _wrap(items));
       }
     }
     for (var i = 0; i < items.length; i++) {
@@ -116,6 +137,8 @@ class ReaderController<T>({
     }
     if (diff.insertedAtStart) _loadingBefore = false;
     if (diff.insertedAtEnd) _loadingAfter = false;
+    if (hasMoreBefore != null) this.hasMoreBefore = hasMoreBefore;
+    if (hasMoreAfter != null) this.hasMoreAfter = hasMoreAfter;
     _changed();
   }
 
@@ -187,56 +210,6 @@ class ReaderController<T>({
     _request(_registry.idAt(itemCount - 1), 1, trailingEdge: true);
   }
 
-  /// Animates towards the item, then places it exactly.
-  Future<void> animateToId(
-    String id, {
-    double alignment = 0,
-    Duration duration = const Duration(milliseconds: 300),
-    Curve curve = Curves.easeInOut,
-  }) async {
-    final position = _position;
-    final data = _registry.indexOfId(id);
-    if (position == null || data == null) return;
-    final raw = _model.rawIndexOf(data);
-    final estimate =
-        _model.offsetAt(raw) +
-        (_report?.drift ?? 0) -
-        alignment * position.viewportDimension;
-    await position.animateTo(
-      estimate.clamp(position.minScrollExtent, position.maxScrollExtent),
-      duration: duration,
-      curve: curve,
-    );
-    jumpToId(id, alignment: alignment);
-  }
-
-  Future<void> animateToIndex(
-    int index, {
-    double alignment = 0,
-    Duration duration = const Duration(milliseconds: 300),
-    Curve curve = Curves.easeInOut,
-  }) => animateToId(
-    _registry.idAt(index),
-    alignment: alignment,
-    duration: duration,
-    curve: curve,
-  );
-
-  /// Animates to the end of the list.
-  Future<void> animateToEnd({
-    Duration duration = const Duration(milliseconds: 300),
-    Curve curve = Curves.easeInOut,
-  }) async {
-    final position = _position;
-    if (position == null) return;
-    await position.animateTo(
-      _reverse ? position.minScrollExtent : position.maxScrollExtent,
-      duration: duration,
-      curve: curve,
-    );
-    scrollToEnd();
-  }
-
   /// Whether the viewport is within [atEndThreshold] of the end of the
   /// list: offset 0 in reverse mode, the last item otherwise.
   bool get isAtEnd => _isAtEnd;
@@ -284,12 +257,18 @@ class ReaderController<T>({
   /// side effects run after the frame.
   void onLayoutReport(ReaderLayoutReport report) {
     _report = report;
+    _scheduleDispatch();
+  }
+
+  void _scheduleDispatch() {
     if (_dispatchScheduled) return;
     _dispatchScheduled = true;
-    SchedulerBinding.instance.addPostFrameCallback((_) {
-      _dispatchScheduled = false;
-      _dispatch();
-    });
+    SchedulerBinding.instance
+      ..scheduleFrame()
+      ..addPostFrameCallback((_) {
+        _dispatchScheduled = false;
+        _dispatch();
+      });
   }
 
   // ── Private ──────────────────────────────────────────────────────────
@@ -340,6 +319,9 @@ class ReaderController<T>({
   void _dispatch() {
     final report = _report;
     if (report == null) return;
+    if (_jump case final jump? when jump.serial == report.fulfilledJumpSerial) {
+      _jump = null; // fulfilled: a fresh sliver must not replay it
+    }
     if (report.firstVisibleRaw < 0) {
       _visibility.value = const VisibilityState();
     } else {
@@ -360,11 +342,11 @@ class ReaderController<T>({
         : report.trailingEdgeReached;
     final callback = onEdgeReached;
     if (callback == null) return;
-    if (hasMoreBefore && !_loadingBefore && beforeReached) {
+    if (_hasMoreBefore && !_loadingBefore && beforeReached) {
       _loadingBefore = true;
       callback(LoadDirection.before);
     }
-    if (hasMoreAfter && !_loadingAfter && afterReached) {
+    if (_hasMoreAfter && !_loadingAfter && afterReached) {
       _loadingAfter = true;
       callback(LoadDirection.after);
     }

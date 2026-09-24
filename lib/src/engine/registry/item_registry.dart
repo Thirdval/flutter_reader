@@ -230,7 +230,9 @@ class ItemRegistry<T>._({
             item.data,
             newWidth,
           ),
-          // No estimator: scale by the width ratio at half the confidence.
+          // No estimator: scale by the width ratio at half the confidence
+          // (no ratio from an unknown width).
+          _ when oldWidth <= 0 => unchanged,
           _ => (
             height: current.height * (oldWidth / newWidth),
             confidence: current.confidence * 0.5,

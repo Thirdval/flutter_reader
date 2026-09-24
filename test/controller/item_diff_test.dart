@@ -16,10 +16,6 @@ void main() {
           list.removeRange(start, start + count);
         case InsertItems<String>(:final index, :final items):
           list.insertAll(index, items);
-        case ReplaceAll<String>(:final items):
-          list
-            ..clear()
-            ..addAll(items);
       }
     }
     return list;
@@ -57,12 +53,11 @@ void main() {
     expect(apply(old, d), next);
     expect(d.insertedAtStart, isTrue);
     expect(d.insertedAtEnd, isTrue);
-    expect(d.ops.whereType<ReplaceAll<String>>(), isEmpty);
   });
 
-  test('a reorder replaces everything', () {
+  test('a reorder moves the fewest items', () {
     final d = diff(['a', 'b', 'c'], ['a', 'c', 'b']);
-    expect(d.ops, [isA<ReplaceAll<String>>()]);
+    expect(d.ops.length, 2);
     expect(apply(['a', 'b', 'c'], d), ['a', 'c', 'b']);
   });
 

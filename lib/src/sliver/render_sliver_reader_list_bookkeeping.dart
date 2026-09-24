@@ -47,13 +47,24 @@ extension _Bookkeeping on RenderSliverReaderList {
       }
     }
     _orderedIds = ordered;
+    // The anchor is the reference only while it is on screen and does
+    // not mean "the end"; an off-screen anchor would move what is read.
     if (_anchor case final anchor?
         when _placedAnchorId == anchor.id &&
-            _offsetsById.containsKey(anchor.id)) {
+            !_anchorMeansEnd &&
+            _isVisible(anchor.id, scrollOffset, paintExtent)) {
       _referenceId = anchor.id;
     } else {
       _referenceId = firstVisible ?? ordered.firstOrNull;
     }
+  }
+
+  bool _isVisible(String id, double scrollOffset, double paintExtent) {
+    final raw = _model.indexOfId(id);
+    final offset = _offsetsById[id];
+    if (raw == null || offset == null) return false;
+    return offset + _model.extentAt(raw) > scrollOffset &&
+        offset < scrollOffset + paintExtent;
   }
 
   void _shiftAll(double delta) {
@@ -73,6 +84,7 @@ extension _Bookkeeping on RenderSliverReaderList {
     _orderedIds = const [];
     _referenceId = null;
     _placedAnchorId = null;
+    _anchorMeansEnd = false;
     _settling = null;
     _settlePasses = 0;
   }
@@ -82,14 +94,19 @@ extension _Bookkeeping on RenderSliverReaderList {
     double paintExtent, {
     required bool trailing,
     required double drift,
+    String? placedAnchor,
   }) {
     var first = -1;
     var last = -1;
+    var firstOffset = 0.0;
     for (var child = firstChild; child != null; child = childAfter(child)) {
       final offset = _offsetOf(child);
       if (offset + _extentOf(child) <= scrollOffset) continue;
       if (offset >= scrollOffset + paintExtent) break;
-      if (first < 0) first = indexOf(child);
+      if (first < 0) {
+        first = indexOf(child);
+        firstOffset = offset - scrollOffset;
+      }
       last = indexOf(child);
     }
     _report(
@@ -98,6 +115,9 @@ extension _Bookkeeping on RenderSliverReaderList {
       leading: indexOf(firstChild!) == 0,
       trailing: trailing || indexOf(lastChild!) == _model.itemCount - 1,
       drift: drift,
+      placedAnchor: placedAnchor,
+      firstVisibleOffset: firstOffset,
+      paintExtent: paintExtent,
     );
   }
 
@@ -107,6 +127,9 @@ extension _Bookkeeping on RenderSliverReaderList {
     required bool leading,
     required bool trailing,
     required double drift,
+    String? placedAnchor,
+    double firstVisibleOffset = 0,
+    double paintExtent = 0,
   }) => onLayout(
     ReaderLayoutReport(
       firstVisibleRaw: first,
@@ -114,6 +137,10 @@ extension _Bookkeeping on RenderSliverReaderList {
       leadingEdgeReached: leading,
       trailingEdgeReached: trailing,
       drift: drift,
+      fulfilledJumpSerial: _fulfilledJumpSerial,
+      placedAnchorId: placedAnchor,
+      firstVisibleOffset: firstVisibleOffset,
+      paintExtent: paintExtent,
     ),
   );
 
@@ -140,6 +167,27 @@ extension _Bookkeeping on RenderSliverReaderList {
     }
     for (final id in _orderedIds) {
       if (_stickySeedFor(id) case final seed?) return seed;
+    }
+    return null;
+  }
+
+  /// A pending jump, else a newly set anchor, when its item is loaded.
+  /// An anchor whose item vanished is placed again when it returns.
+  _Placement? _placement() {
+    if (_jump case final jump? when jump.serial != _fulfilledJumpSerial) {
+      if (_model.indexOfId(jump.id) != null) {
+        _fulfilledJumpSerial = jump.serial;
+        return _Placement(jump.id, jump.alignment, jump.trailingEdge);
+      }
+    }
+    if (_anchor case final anchor?) {
+      if (_model.indexOfId(anchor.id) == null) {
+        _placedAnchorId = null;
+      } else if (_placedAnchorId != anchor.id) {
+        _placedAnchorId = anchor.id;
+        _anchorMeansEnd = _model.indexOfId(anchor.id) == 0;
+        return _Placement(anchor.id, anchor.alignment, false, isAnchor: true);
+      }
     }
     return null;
   }

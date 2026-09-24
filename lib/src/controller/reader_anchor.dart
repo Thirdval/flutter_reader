@@ -52,4 +52,17 @@ class const ReaderLayoutReport({
 
   /// Layout offset minus model offset of the first attached child.
   required final double drift,
+
+  /// The serial of the last [ReaderJump] this sliver fulfilled, or -1.
+  final int fulfilledJumpSerial = -1,
+
+  /// The anchor that settled at its alignment in this pass, if any.
+  final String? placedAnchorId,
+
+  /// Where the first visible child starts, relative to the sliver's
+  /// scroll offset (negative when it starts before the viewport).
+  final double firstVisibleOffset = 0,
+
+  /// The sliver's paint area in this pass.
+  final double paintExtent = 0,
 });

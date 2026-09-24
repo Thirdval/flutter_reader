@@ -1,5 +1,48 @@
 # Changelog
 
+## 2.1.0
+
+Asked for by the Tendvine adoption, and found by a randomized stress
+walk over the sliver (`test/stress/`).
+
+### Added
+
+* `ReaderView.onAnchorPlaced(id)`: called after the frame in which the
+  anchor landed at its alignment, at once for a loaded item or when a
+  later `setItems` brings it. Start a highlight there.
+* `ReaderController.setItems(items, {hasMoreBefore, hasMoreAfter})`:
+  the edge flags travel with the list. Setting a flag to true re-arms
+  the edge callback if that edge is already inside the cache window.
+* `ReaderController.initialWidth` is optional (0 = unknown); the first
+  layout re-estimates at the real width.
+* Content-exact restore: a `ReaderView` under a `PageStorageKey`
+  remembers its first visible item and offset and places it again on
+  return, so the same content comes back even after heights changed.
+* Moves: `setItems` re-inserts only the items that changed relative
+  order (a longest increasing subsequence keeps the rest, heights
+  included). `ReplaceAll` is gone from `ItemDiffOp`.
+* Semantic indices count in data order in both directions.
+* `test/stress/random_walk_test.dart`: random drags, jumps, inserts,
+  removals, edits and anchors with tiling, neighbour, keep-position and
+  origin invariants after every step; `test/claims/adoption_asks_test.dart`
+  and `corner_cases_test.dart`; `set_items_benchmark_test.dart`.
+
+### Fixed
+
+* An anchor kept pinning the list while scrolled out of view, so a
+  height change between it and the viewport moved what was on screen.
+  The anchor is the reference child only while it is visible.
+* An anchor set on the newest message (the origin) pinned it once a
+  newer message arrived. Such an anchor means "the end": new messages
+  push in.
+* An anchor whose item vanished was not placed again when it returned.
+* A fulfilled jump was replayed by a fresh sliver (a room switch, a
+  PageStorage restore).
+* A placement clamped at the origin settled at the sliver's start, not
+  the viewport's, leaving a leading spacer's height between them.
+* `MeasuredItem` and the scheduler aside, `initialWidth: 0` no longer
+  scales estimator-less heights by a zero ratio on the first layout.
+
 ## 2.0.1
 
 * A placement (a jump or a newly set anchor) is settled against the

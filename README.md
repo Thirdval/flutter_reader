@@ -15,7 +15,7 @@ dependencies:
   flutter_reader:
     git:
       url: https://github.com/Thirdval/flutter_reader.git
-      ref: v2.0.1
+      ref: v2.1.0
 ```
 
 Dart `^3.13.0`, Flutter `>=3.47.0` (`.fvmrc` pins 3.47.1). No other
@@ -43,29 +43,34 @@ final reader = ReaderController<Message>(
 );
 
 ReaderView<Message>(
+  key: PageStorageKey('room-${room.id}'),      // the same content comes back
   controller: reader,
   scrollController: scrollController,          // yours; jumpTo(0) is "latest"
   reverse: true,
   anchor: target == null ? null : ReaderAnchor(id: target, alignment: 0.7),
+  onAnchorPlaced: (id) => startHighlight(id),  // when it is on screen
   leadingSlivers: [const SliverToBoxAdapter(child: SizedBox(height: 4))],
   trailingSlivers: [SliverToBoxAdapter(child: historyLoaderOrIntro)],
   itemBuilder: (context, index, message) => MessageBubble(message),
 );
 
 // On every emission of the watched feed:
-reader.setItems(messages);
+reader.setItems(messages, hasMoreBefore: hasOlder);
 ```
 
 * `setItems` diffs by id: survivors keep their measured heights and get
-  the new payload, removals and insertions apply as batches, a reorder
-  rebuilds. What is on screen does not move.
+  the new payload, removals and insertions apply as batches, and only
+  items that changed relative order are re-inserted. What is on screen
+  does not move.
 * At the end of the list (within `atEndThreshold`) a new message pushes
   in; scrolled up, nothing moves and your "new below" count works.
 * `anchor` pins an item's leading edge at `alignment` (a fraction of the
   viewport from its leading edge, the bottom in reverse mode) while
-  older pages load around it. An anchor naming an item that is not
-  loaded yet is placed the moment it appears; clear it when the viewer
-  is back at the end.
+  older pages load around it, for as long as it is on screen. An anchor
+  naming an item that is not loaded yet is placed the moment it
+  appears, and `onAnchorPlaced` tells you when; an anchor on the newest
+  message means "the end" and lets new messages push in; clear the
+  anchor when the viewer is back at the end.
 * `onEdgeReached` fires when the loaded edge enters the cache window,
   never at open for a history longer than a screen, and once per page
   until that edge gains items (`prependItems([])` after a failed load
@@ -137,13 +142,13 @@ means "latest".
 
 | Member | What it does |
 | --- | --- |
-| `items`, `idOf`, `typeKeyOf`, `typeConfigs`, `initialWidth`, `bucketSize` | Construction; `typeConfigs` needs every type key (asserted) and ids must be unique |
-| `setItems(list)` | Diff by id; resets the loading guard of an edge that gained items |
+| `items`, `idOf`, `typeKeyOf`, `typeConfigs`, `initialWidth`, `bucketSize` | Construction; `typeConfigs` needs every type key (asserted), ids must be unique, `initialWidth` may be left unknown (the first layout sets it) |
+| `setItems(list, {hasMoreBefore, hasMoreAfter})` | Diff by id (moves included); resets the loading guard of an edge that gained items; sets the flags when given |
 | `appendItems`, `prependItems`, `insertItems`, `removeItems`, `updateItem` | Batch mutations; append / prepend reset their edge's guard, an empty list too |
 | `itemCount`, `itemAt(i)`, `indexOfId(id)`, `items` | Data order |
 | `jumpToId(id, alignment)`, `jumpToIndex(i, alignment)` | Placed inside the next layout; unknown ids are ignored |
 | `animateToId`, `animateToIndex`, `scrollToEnd`, `animateToEnd` | Motion policy is yours (duration, curve) |
-| `hasMoreBefore`, `hasMoreAfter`, `onEdgeReached` | Lazy loading, gated on the cache window |
+| `hasMoreBefore`, `hasMoreAfter`, `onEdgeReached` | Lazy loading, gated on the cache window; a flag set to true re-arms a reached edge |
 | `atEndThreshold`, `isAtEnd`, `onAtEndChanged` | "At the end" in pixels |
 | `visibility` | `ValueListenable<VisibilityState>` in data order |
 | `engine`, `registry` | The pure-Dart engine and registry underneath |
@@ -159,16 +164,23 @@ below it). A placement is settled over the same frame's layout passes.
 ### `ReaderView<T>`
 
 `controller`, `scrollController` (required), `itemBuilder(context, index,
-item)`, `reverse`, `anchor`, `leadingSlivers`, `trailingSlivers`,
-`padding`, `physics`, `scrollCacheExtent`, `addAutomaticKeepAlives`
-(off), `addSemanticIndexes`, `itemUpdateListenable` (rebuilds the
-visible items when it notifies, for search highlights). A
-`PageStorageKey` on the view restores its offset.
+item)`, `reverse`, `anchor`, `onAnchorPlaced`, `leadingSlivers`,
+`trailingSlivers`, `padding`, `physics`, `scrollCacheExtent`,
+`addAutomaticKeepAlives` (off), `addSemanticIndexes` (indices count in
+data order in both directions), `itemUpdateListenable` (rebuilds the
+visible items when it notifies, for search highlights). With a
+`PageStorageKey` as its key, the view remembers the first visible item
+and its offset and places it again when rebuilt under that key: the
+same content returns even after heights changed.
 
 ### `ReaderAnchor(id, alignment)`
 
 The pinned item. Setting a new anchor places it once; the same anchor
-again does nothing; `null` releases it without moving anything.
+again does nothing; `null` releases it without moving anything. The
+anchor is the list's reference child only while it is on screen (an
+off-screen anchor would move what is being read), never when it is the
+item at the origin (that anchor means "the end"), and it is placed again
+if its item vanishes and returns.
 
 ### Engine (pure Dart)
 
@@ -205,18 +217,39 @@ pass. Strings and widgets are yours.
 | An anchor holds through ten pages and new messages, is placed when its item lands, releases without a move | `test/claims/anchor_test.dart` |
 | Edge loading never fires at open for a long history, fires once per page, honours the guard; `isAtEnd` follows the threshold | `test/claims/lazy_loading_test.dart` |
 | Visibility is the screenful in data order in both directions; a width change reaches the registry and keeps the top item; mutations render without a host rebuild | `test/claims/visibility_and_width_test.dart` |
+| `onAnchorPlaced` fires once; an anchor on the newest message means the end; flags travel with `setItems`; an unknown width is set by the first layout; a move near the end or of the reference child, and deleting the reference child, keep the screen; ten heterogeneous pages land without a shift while scrolled up, anchored or at the top; a keyboard-sized viewport change keeps the end or the reference; PageStorage brings each room back, even after heights changed; semantic indices survive diffs; 5,000 items keep a screenful of widgets alive | `test/claims/adoption_asks_test.dart` |
+| Inserts inside and just above the visible range, items taller than the viewport, zero-height items, keep-alives, padding, bouncing physics, RTL, rapid jumps, a vanished anchor, an emptied list, a flag flipped on later, animation across unmeasured regions | `test/claims/corner_cases_test.dart` |
+| 120 random drags, jumps, inserts, removals, edits and anchors per seed, five seeds per direction: rows tile the screen with no gap, overlap or skipped neighbour; a mutation outside the visible range moves nothing; `scrollToEnd` is flush; the origin is exact afterwards | `test/stress/random_walk_test.dart` |
+| `setItems` cost with one edit, one removal, one move at 500 and 5,000 items | `test/stress/set_items_benchmark_test.dart` (`benchmark` tag) |
 | The jump error estimate spans buckets through the error tree | `test/engine/jump_error_test.dart` (a `benchmark`-tagged timing) |
 | Engine data structures | `test/engine/` |
 | Layout models, the diff, the controller, measurement, search | `test/layout/`, `test/controller/`, `test/measurement/`, `test/search/` |
 | Files stay under 400 lines (engine 500) | `test/architecture/file_size_test.dart` |
 
+## Numbers
+
+Measured by `flutter test --tags benchmark` on a laptop, in the Dart VM
+in debug mode; treat them as ceilings.
+
+| Operation | Cost |
+| --- | --- |
+| `setItems` over 500 items: unchanged list / one edit / one removal and one append / one move | 209 / 1128 / 828 / 325 µs |
+| `setItems` over 5,000 items: unchanged list / one edit / one removal and one append / one move | 2276 / 2330 / 3214 / 3217 µs |
+| A jump from item 0 to item 5,000 of 10,000 | under 40 widgets built (`jump_cost_test`) |
+| 5,000 items after a jump every 100 and a fling | under 40 widgets alive (`adoption_asks_test`) |
+| The engine's jump error estimate over 200,000 items, far versus near | about the same (`jump_error_test`, `benchmark` tag) |
+
 ## What it does not do
 
 * Search is a linear scan over loaded items; nothing lazily loaded is
   searched.
-* A reorder of surviving items rebuilds the registry (heights are
-  re-estimated until the items are laid out again).
+* A moved item is re-inserted and re-estimated until it is laid out
+  again; everything else keeps its measured height.
 * No Material: no search bar, no highlight widget, no strings.
+* Semantics traverse in visual order (top to bottom, so oldest first in
+  a chat); the package only keeps the "item n of m" indices in data
+  order. A pinned header before the list is not accounted for by the
+  alignment's frame of reference.
 
 ## Development
 
@@ -237,9 +270,17 @@ Testing notes for adopters:
   the new maximum a frame later, so a test that wants "the far edge
   reached" through the scroll controller must pump until `pixels ==
   maxScrollExtent`. The claim tests use `jumpToIndex` for this reason.
-* Layout reports, and with them `visibility`, `onEdgeReached` and
-  `onAtEndChanged`, arrive after the frame: pump once for the layout
-  and once for the callbacks.
+* Layout reports, and with them `visibility`, `onEdgeReached`,
+  `onAtEndChanged` and `onAnchorPlaced`, arrive after the frame: pump
+  once for the layout and once for the callbacks.
+* An offset past the extent (a jump whose target's real heights were
+  smaller than estimated) stays there until a gesture ends and the
+  physics spring it back, as in any dead-reckoning list; assert scroll
+  ranges after `pumpAndSettle`, not after a bare `pump`.
+* `test/stress/random_walk_test.dart` is the template for a
+  model-based check of your own list: rows must tile, neighbours must
+  be consecutive, and nothing visible may move on a mutation outside
+  the visible range.
 
 ## License
 

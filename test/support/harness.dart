@@ -75,13 +75,20 @@ Widget host(
   List<Widget> trailingSlivers = const [],
   Listenable? itemUpdateListenable,
   bool addAutomaticKeepAlives = false,
+  ScrollPhysics? physics,
+  EdgeInsetsGeometry? padding,
+  TextDirection textDirection = TextDirection.ltr,
+  Key? viewKey,
+  ValueChanged<String>? onAnchorPlaced,
 }) => Directionality(
-  textDirection: TextDirection.ltr,
-  child: Center(
+  textDirection: textDirection,
+  child: Align(
+    alignment: Alignment.topCenter,
     child: SizedBox(
       width: width,
       height: height,
       child: ReaderView<Item>(
+        key: viewKey,
         controller: controller,
         scrollController: scroll,
         reverse: reverse,
@@ -90,6 +97,9 @@ Widget host(
         trailingSlivers: trailingSlivers,
         itemUpdateListenable: itemUpdateListenable,
         addAutomaticKeepAlives: addAutomaticKeepAlives,
+        physics: physics,
+        padding: padding,
+        onAnchorPlaced: onAnchorPlaced,
         itemBuilder: (context, index, item) {
           onBuild?.call();
           return SizedBox(
@@ -106,21 +116,27 @@ Widget host(
 double pixels(WidgetTester tester) =>
     tester.state<ScrollableState>(find.byType(Scrollable)).position.pixels;
 
-/// The rendered item texts with their top edge in the 600 px window,
-/// top to bottom.
-List<(String id, double top)> onScreen(WidgetTester tester) {
-  final rows = <(String, double)>[];
+/// The rendered item texts with their top edge and height in the 600 px
+/// window, top to bottom.
+List<(String id, double top, double height)> rows(WidgetTester tester) {
+  final out = <(String, double, double)>[];
   for (final element in find.byType(Text).evaluate()) {
     final box = element.renderObject! as RenderBox;
     if (!box.hasSize || !box.attached) continue;
     final top = box.localToGlobal(Offset.zero).dy;
     final height = box.size.height;
     if (top + height <= 0 || top >= 600) continue;
-    rows.add(((element.widget as Text).data!, top));
+    out.add(((element.widget as Text).data!, top, height));
   }
-  rows.sort((a, b) => a.$2.compareTo(b.$2));
-  return rows;
+  out.sort((a, b) => a.$2.compareTo(b.$2));
+  return out;
 }
+
+/// The rendered item texts with their top edge in the 600 px window,
+/// top to bottom.
+List<(String id, double top)> onScreen(WidgetTester tester) => [
+  for (final (id, top, _) in rows(tester)) (id, top),
+];
 
 /// The id at the top of the window and its top edge.
 (String id, double top) topOfScreen(WidgetTester tester) =>
