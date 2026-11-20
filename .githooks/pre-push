@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# Before a push: ci/quick-check.sh — the CHEAP part of the Jenkins gate (owner 2026-11-20: tests run once, on Jenkins;
+# a push must not go red for a stupid reason). Active with `git config core.hooksPath .githooks`. Skip once, knowingly:
+# git push --no-verify.
+cd "$(git rev-parse --show-toplevel)" && exec bash ci/quick-check.sh
